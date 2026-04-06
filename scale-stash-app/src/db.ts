@@ -1,7 +1,6 @@
 /**
  * IndexedDB persistence layer using the idb library.
- * Replaces the Electron better-sqlite3 layer so the app runs
- * entirely in the browser with no native compilation required.
+ * All data is stored in the browser — no native dependencies required.
  */
 import { openDB, type IDBPDatabase } from 'idb';
 import type { Kit } from './types';
