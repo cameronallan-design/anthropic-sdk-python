@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "Stash Manager",
+    "slug": "stash-manager-ios",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0a12"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.cameronallan.stashmanager",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Used to select box art images for your kits.",
+        "NSCameraUsageDescription": "Used to photograph box art for your kits.",
+        "NSPhotoLibraryAddUsageDescription": "Used to save box art images."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0a0a12"
+      },
+      "package": "com.cameronallan.stashmanager"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-sqlite",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Used to select box art images for your kits.",
+          "cameraPermission": "Used to photograph box art for your kits."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "replace-with-your-eas-project-id"
+      }
+    }
+  }
+}
