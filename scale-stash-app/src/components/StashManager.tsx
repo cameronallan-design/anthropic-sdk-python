@@ -7,6 +7,8 @@ import {
   STATUS_COLORS,
   EMPTY_KIT,
 } from "../types";
+import * as db from "../db";
+import { kitsToCSV, csvToKits, downloadCSV } from "../utils/csv";
 import KitCard from "./KitCard";
 import KitForm from "./KitForm";
 
@@ -38,26 +40,22 @@ export default function StashManager() {
   const [sortBy, setSortBy] = useState("added");
   const [importMsg, setImportMsg] = useState("");
 
-  // ── Load from SQLite on mount ───────────────────────────────────────────
+  // ── Load from IndexedDB on mount ─────────────────────────────────────────
 
   useEffect(() => {
-    window.api
-      .getKits()
-      .then((data) => {
-        setKits(data);
-        setLoaded(true);
-      })
+    db.getAllKits()
+      .then((data) => { setKits(data); setLoaded(true); })
       .catch(() => setLoaded(true));
   }, []);
 
-  // ── CRUD ────────────────────────────────────────────────────────────────
+  // ── CRUD ─────────────────────────────────────────────────────────────────
 
   async function saveKit(form: Kit) {
     const kit: Kit = form.id
       ? form
       : { ...form, id: generateId(), addedAt: Date.now() };
 
-    await window.api.saveKit(kit);
+    await db.saveKit(kit);
     setKits((ks) =>
       kit.id && ks.some((k) => k.id === kit.id)
         ? ks.map((k) => (k.id === kit.id ? kit : k))
@@ -68,7 +66,7 @@ export default function StashManager() {
 
   async function deleteKit(id: string) {
     if (!confirm("Remove this kit from your stash?")) return;
-    await window.api.deleteKit(id);
+    await db.deleteKit(id);
     setKits((ks) => ks.filter((k) => k.id !== id));
   }
 
@@ -76,32 +74,45 @@ export default function StashManager() {
     const kit = kits.find((k) => k.id === id);
     if (!kit) return;
     const updated = { ...kit, status };
-    await window.api.saveKit(updated);
+    await db.saveKit(updated);
     setKits((ks) => ks.map((k) => (k.id === id ? updated : k)));
   }
 
-  // ── CSV export ───────────────────────────────────────────────────────────
+  // ── CSV export ────────────────────────────────────────────────────────────
 
-  async function handleExport() {
-    const ok = await window.api.exportCSV(filtered);
-    if (ok) setImportMsg(`Exported ${filtered.length} kit(s) to CSV.`);
-  }
-
-  // ── CSV import ───────────────────────────────────────────────────────────
-
-  async function handleImport() {
-    const imported = await window.api.importCSV();
-    if (!imported) return;
-    if (imported.length === 0) {
-      setImportMsg("No kits found in that CSV.");
+  function handleExport() {
+    if (filtered.length === 0) {
+      alert("No kits match the current filters.");
       return;
     }
-    const newKits = await window.api.bulkImport(imported);
-    setKits(newKits);
-    setImportMsg(`Imported ${imported.length} kit(s).`);
+    downloadCSV(kitsToCSV(filtered), "stash-export.csv");
+    setImportMsg(`Exported ${filtered.length} kit(s) to CSV.`);
   }
 
-  // ── Filtering / sorting ──────────────────────────────────────────────────
+  // ── CSV import ────────────────────────────────────────────────────────────
+
+  function handleImport() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".csv,text/csv";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const content = await file.text();
+      const imported = csvToKits(content);
+      if (imported.length === 0) {
+        setImportMsg("No kits found in that CSV.");
+        return;
+      }
+      if (!confirm(`Import ${imported.length} kit(s)? Existing kits with the same ID will be updated.`)) return;
+      const updated = await db.bulkImport(imported);
+      setKits(updated);
+      setImportMsg(`Imported ${imported.length} kit(s).`);
+    };
+    input.click();
+  }
+
+  // ── Filtering / sorting ───────────────────────────────────────────────────
 
   const filtered = useMemo(() => {
     let list = [...kits];
@@ -157,8 +168,7 @@ export default function StashManager() {
           background: "#0d0d1a",
           borderBottom: "1px solid #1a1a2e",
           padding: "0 24px",
-          WebkitAppRegion: "drag",
-        } as React.CSSProperties}
+        }}
       >
         <div
           style={{
@@ -195,15 +205,7 @@ export default function StashManager() {
             </div>
           </div>
 
-          {/* Header actions — no drag */}
-          <div
-            style={{
-              marginLeft: "auto",
-              display: "flex",
-              gap: 8,
-              WebkitAppRegion: "no-drag",
-            } as React.CSSProperties}
-          >
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
             <button
               onClick={handleImport}
               title="Import Scalemates or Stash CSV"
@@ -228,9 +230,7 @@ export default function StashManager() {
         </div>
       </div>
 
-      <div
-        style={{ maxWidth: 960, margin: "0 auto", padding: "20px 24px" }}
-      >
+      <div style={{ maxWidth: 960, margin: "0 auto", padding: "20px 24px" }}>
         {/* ── Import message ── */}
         {importMsg && (
           <div
@@ -335,9 +335,7 @@ export default function StashManager() {
             style={{ ...inputStyle, flex: "0 0 auto" }}
           >
             <option>All</option>
-            {STATUSES.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
+            {STATUSES.map((s) => <option key={s}>{s}</option>)}
           </select>
           <select
             value={filterCat}
@@ -345,9 +343,7 @@ export default function StashManager() {
             style={{ ...inputStyle, flex: "0 0 auto" }}
           >
             <option>All</option>
-            {CATEGORIES.map((c) => (
-              <option key={c}>{c}</option>
-            ))}
+            {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
           </select>
           <select
             value={filterScale}
@@ -355,9 +351,7 @@ export default function StashManager() {
             style={{ ...inputStyle, flex: "0 0 auto" }}
           >
             <option>All</option>
-            {SCALES.map((s) => (
-              <option key={s}>{s}</option>
-            ))}
+            {SCALES.map((s) => <option key={s}>{s}</option>)}
           </select>
           <select
             value={sortBy}
@@ -384,9 +378,7 @@ export default function StashManager() {
             Loading stash…
           </div>
         ) : filtered.length === 0 ? (
-          <div
-            style={{ textAlign: "center", color: "#333", padding: 80 }}
-          >
+          <div style={{ textAlign: "center", color: "#333", padding: 80 }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>📦</div>
             <div style={{ fontSize: 16, color: "#555" }}>
               {kits.length === 0
@@ -395,13 +387,7 @@ export default function StashManager() {
             </div>
           </div>
         ) : (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-            }}
-          >
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {filtered.map((kit) => (
               <KitCard
                 key={kit.id}

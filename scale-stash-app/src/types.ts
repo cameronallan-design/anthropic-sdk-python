@@ -108,21 +108,3 @@ export const EMPTY_KIT: Omit<Kit, "id" | "addedAt"> = {
   shops: [],
 };
 
-// Augment the window object with our Electron API
-declare global {
-  interface Window {
-    api: {
-      getKits: () => Promise<Kit[]>;
-      saveKit: (kit: Kit) => Promise<Kit>;
-      deleteKit: (id: string) => Promise<void>;
-      bulkImport: (kits: Kit[]) => Promise<Kit[]>;
-      pickImage: () => Promise<string | null>;
-      exportCSV: (kits: Kit[]) => Promise<boolean>;
-      importCSV: () => Promise<Kit[] | null>;
-      searchShop: (
-        retailer: string,
-        query: string
-      ) => Promise<{ results: ShopResult[]; searchUrl?: string; error?: string }>;
-    };
-  }
-}
