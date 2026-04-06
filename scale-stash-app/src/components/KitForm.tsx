@@ -1,8 +1,10 @@
 import { useState, useRef } from "react";
-import {
+import type {
   Kit,
   ShopLink,
   ShopResult,
+} from "../types";
+import {
   CATEGORIES,
   SCALES,
   STATUSES,
@@ -91,10 +93,12 @@ function ShopSearchPanel({
     setResults([]);
     setSearchUrl("");
     try {
-      const res = await window.api.searchShop(retailer, query.trim());
-      setResults(res.results);
-      setSearchUrl(res.searchUrl ?? "");
-      if (res.error) setError(`Note: ${res.error}`);
+      const url = `/api/search?retailer=${encodeURIComponent(retailer)}&q=${encodeURIComponent(query.trim())}`;
+      const res = await fetch(url);
+      const data = await res.json() as { results: ShopResult[]; searchUrl?: string; error?: string };
+      setResults(data.results ?? []);
+      setSearchUrl(data.searchUrl ?? "");
+      if (data.error) setError(`Note: ${data.error}`);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -266,20 +270,31 @@ export default function KitForm({ kit, onSave, onClose }: Props) {
   const [showShopSearch, setShowShopSearch] = useState(false);
   const [imgLoading, setImgLoading] = useState(false);
   const urlInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const set = <K extends keyof Kit>(k: K, v: Kit[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
   // ── Box art ──────────────────────────────────────────────────────────────
 
-  async function pickImage() {
+  function pickImage() {
+    fileInputRef.current?.click();
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
     setImgLoading(true);
-    try {
-      const dataUrl = await window.api.pickImage();
-      if (dataUrl) set("boxArtUrl", dataUrl);
-    } finally {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result;
+      if (typeof result === "string") set("boxArtUrl", result);
       setImgLoading(false);
-    }
+    };
+    reader.onerror = () => setImgLoading(false);
+    reader.readAsDataURL(file);
+    // Reset so the same file can be picked again if needed
+    e.target.value = "";
   }
 
   // ── Shop links ───────────────────────────────────────────────────────────
@@ -512,6 +527,13 @@ export default function KitForm({ kit, onSave, onClose }: Props) {
               </div>
 
               <div style={{ flex: 1, display: "grid", gap: 8 }}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={handleFileChange}
+                />
                 <div style={{ display: "flex", gap: 8 }}>
                   <input
                     ref={urlInputRef}
